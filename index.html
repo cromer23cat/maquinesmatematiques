@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Màquina de Funcions Matemàtiques</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Fredoka for friendly playful typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        fredoka: ['Fredoka', 'sans-serif'],
+                        outfit: ['Outfit', 'sans-serif']
+                    },
+                    colors: {
+                        kids: {
+                            purple: '#6D28D9',
+                            yellow: '#FBBF24',
+                            pink: '#F43F5E',
+                            cyan: '#06B6D4',
+                            green: '#10B981',
+                            dark: '#0F172A'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: radial-gradient(circle at top, #1e1b4b 0%, #0f172a 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+            user-select: none;
+        }
+
+        /* Machine Gear & Ball Animations */
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes spin-reverse {
+            from { transform: rotate(360deg); }
+            to { transform: rotate(0deg); }
+        }
+        @keyframes bounce-subtle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        @keyframes machine-shake {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-4px, 4px) rotate(-1.5deg); }
+            40% { transform: translate(4px, -3px) rotate(1.5deg); }
+            60% { transform: translate(-4px, -3px) rotate(-1.5deg); }
+            80% { transform: translate(4px, 3px) rotate(1.5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        @keyframes ball-drop {
+            0% { transform: translateY(-70px) scale(0.5); opacity: 0; }
+            50% { transform: translateY(0px) scale(1.15); opacity: 1; }
+            70% { transform: translateY(-8px) scale(0.95); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(56, 189, 248, 0.8); }
+        }
+
+        .gear-spin { animation: spin-slow 9s linear infinite; }
+        .gear-reverse { animation: spin-reverse 7s linear infinite; }
+        .working-machine { animation: machine-shake 0.35s ease-in-out infinite; }
+        .ball-anim { animation: ball-drop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .robot-bounce { animation: bounce-subtle 3s ease-in-out infinite; }
+        .glow-card { animation: pulse-glow 3s infinite; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
+    </style>
+</head>
+<body class="p-3 md:p-6 flex flex-col justify-between min-h-screen max-w-6xl mx-auto">
+
+    <script>
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playTone(freq, type, duration, delay = 0, vol = 0.15) {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + delay);
+                    osc.stop(this.ctx.currentTime + delay + duration);
+                } catch(e) {}
+            }
+            playSuccess() {
+                this.playTone(523.25, 'sine', 0.12, 0);      // C5
+                this.playTone(659.25, 'sine', 0.12, 0.08);   // E5
+                this.playTone(783.99, 'sine', 0.12, 0.16);   // G5
+                this.playTone(1046.50, 'triangle', 0.3, 0.24); // C6
+            }
+            playWrong() {
+                this.playTone(260, 'sawtooth', 0.18, 0, 0.2);
+                this.playTone(200, 'sawtooth', 0.25, 0.12, 0.2);
+            }
+            playMachine() {
+                for (let i = 0; i < 4; i++) {
+                    this.playTone(160 + Math.random() * 120, 'square', 0.07, i * 0.07, 0.08);
+                }
+            }
+            playClick() {
+                this.playTone(500, 'sine', 0.04, 0, 0.1);
+            }
+        }
+        const sfx = new SoundFX();
+    </script>
+
+    <!-- App Wrapper -->
+    <div id="app" class="flex flex-col gap-4 w-full flex-grow">
+        
+        <header class="bg-slate-800/90 border-2 border-slate-700/80 rounded-3xl p-4 shadow-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
+            
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-amber-400 to-orange-500 text-slate-950 w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-lg transform -rotate-3">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black bg-gradient-to-r from-amber-300 via-orange-300 to-yellow-200 bg-clip-text text-transparent">
+                        La Màquina de Funcions
+                    </h1>
+                    <p class="text-xs text-slate-300 font-medium">Matemàtiques Primària • Descobreix el Patró Secret</p>
+                </div>
+            </div>
+
+            <!-- Level Badge & Score Display -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="bg-slate-900/90 border border-amber-500/30 px-3.5 py-1.5 rounded-2xl flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-star text-amber-400 text-base"></i>
+                    <span class="text-xs text-slate-300 font-bold uppercase tracking-wider">Punts:</span>
+                    <span id="score-display" class="text-base font-black text-amber-400 font-mono">0</span>
+                </div>
+
+                <div class="bg-slate-900/90 border border-emerald-500/30 px-3.5 py-1.5 rounded-2xl flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+                    <span id="progress-display" class="text-xs font-bold text-emerald-300">Exercici 1 de 5</span>
+                </div>
+
+                <button onclick="toggleLevelModal()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-4 py-2 rounded-2xl text-xs transition shadow-lg flex items-center gap-2 border border-indigo-400/40">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>Canviar Nivell</span>
+                </button>
+            </div>
+        </header>
+
+        <section class="bg-gradient-to-r from-indigo-900/60 to-purple-900/60 border border-indigo-500/30 rounded-3xl p-3.5 flex items-center gap-4 shadow-xl">
+            <div class="relative shrink-0">
+                <div class="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-tr from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center text-2xl text-slate-950 shadow-lg robot-bounce border-2 border-white/20">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-cyan-300"></span>
+                </span>
+            </div>
+            <div class="flex-grow">
+                <div class="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">Robo-Codi (El teu assistent)</div>
+                <p id="robot-speech" class="text-xs md:text-sm text-slate-100 font-medium">
+                    "Hola! Mira la taula de números. La màquina transforma l'<strong>ENTRADA</strong> en <strong>SORTIDA</strong>. Quin número ha de sortir a la pregunta <strong>?</strong>"
+                </p>
+            </div>
+        </section>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-grow">
+            
+            <!-- Left Column: Graphic Interactive Machine (5 cols on large) -->
+            <section class="lg:col-span-5 bg-slate-800/60 border-2 border-slate-700/60 rounded-3xl p-5 flex flex-col justify-between items-center relative shadow-2xl">
+                
+                <!-- Level Indicator Tag -->
+                <div class="w-full flex justify-between items-center mb-2">
+                    <span id="level-badge" class="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-3 py-1 rounded-full border border-emerald-500/30">
+                        Nivell 1: Suma o Resta
+                    </span>
+                    <span class="text-xs text-slate-400 font-bold"><i class="fa-solid fa-gamepad text-indigo-400 mr-1"></i> Màquina Virtual</span>
+                </div>
+
+                <!-- Animated Machine Illustration Body -->
+                <div id="machine-container" class="w-full bg-slate-900/90 border-2 border-slate-700 rounded-2xl p-4 flex flex-col items-center justify-center my-2 shadow-inner">
+                    
+                    <!-- ENTRA Pipe (Top Tube) -->
+                    <div class="flex flex-col items-center z-10">
+                        <div class="bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-xs uppercase tracking-widest px-4 py-1 rounded-t-xl shadow-md border-t border-x border-emerald-300/40">
+                            ENTRA (Entrada)
+                        </div>
+                        <div class="w-24 h-11 bg-slate-700/80 border-x-4 border-slate-600 flex items-center justify-center relative shadow-inner">
+                            <div id="funnel-ball" class="hidden w-10 h-10 rounded-full bg-emerald-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-lg border-2 border-emerald-100 z-20">
+                                ?
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Machine Core Container -->
+                    <div id="machine-body" class="w-full max-w-xs bg-slate-800 border-4 border-slate-600 rounded-3xl p-4 relative shadow-2xl flex flex-col items-center my-0.5">
+                        
+                        <!-- Lights -->
+                        <div class="w-full flex justify-between items-center mb-2">
+                            <div class="flex gap-1.5">
+                                <span class="w-3.5 h-3.5 rounded-full bg-rose-500 border border-rose-300 shadow"></span>
+                                <span class="w-3.5 h-3.5 rounded-full bg-amber-400 border border-amber-200 shadow"></span>
+                                <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 border border-emerald-200 shadow"></span>
+                            </div>
+                            <span class="text-[10px] font-black font-mono text-cyan-400 tracking-wider">MÀQUINA-2000</span>
+                        </div>
+
+                        <!-- Gears & Display Screen -->
+                        <div class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl p-3 flex items-center justify-around relative my-1 overflow-hidden">
+                            <i class="fa-solid fa-gear text-4xl text-slate-800 gear-spin"></i>
+                            <div class="text-center z-10">
+                                <div class="text-[10px] text-indigo-300 font-bold uppercase tracking-wider mb-0.5">ESTAT DE LA NORMA</div>
+                                <div id="screen-rule-status" class="text-sm font-black text-amber-300 tracking-wide font-mono bg-slate-900/80 px-3 py-1 rounded-lg border border-amber-500/30">
+                                    <i class="fa-solid fa-lock text-xs mr-1 text-amber-400"></i> BLOQUEJADA
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-gear text-3xl text-slate-800 gear-reverse"></i>
+                        </div>
+
+                        <!-- Interactive Tester ("Laboratori de Proves") -->
+                        <div class="w-full mt-3 pt-2.5 border-t border-slate-700/80 flex flex-col items-center">
+                            <span class="text-xs text-cyan-300 font-bold mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-flask text-amber-400"></i> Provador: Prova un número!
+                            </span>
+                            <div class="flex gap-2 w-full">
+                                <input type="number" id="test-input" placeholder="Escriu un nº..." class="w-full bg-slate-900 border-2 border-slate-600 focus:border-cyan-400 rounded-xl px-3 py-1.5 text-sm font-bold text-center text-white focus:outline-none transition">
+                                <button onclick="runTestMachine()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md active:scale-95 shrink-0">
+                                    <i class="fa-solid fa-play"></i> Provar
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- SURT Pipe (Bottom Exit Tube) -->
+                    <div class="flex flex-col items-center z-10">
+                        <div class="w-24 h-11 bg-slate-700/80 border-x-4 border-slate-600 flex items-center justify-center relative shadow-inner">
+                            <div id="output-ball" class="hidden w-10 h-10 rounded-full bg-indigo-500 text-white font-black flex items-center justify-center text-sm shadow-lg border-2 border-indigo-200 ball-anim">
+                                ?
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black text-xs uppercase tracking-widest px-4 py-1 rounded-b-xl shadow-md border-b border-x border-indigo-300/40">
+                            SURT (Sortida)
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Secret Rule Revealed Display Box -->
+                <div id="rule-revelation-box" class="w-full bg-gradient-to-r from-emerald-950/90 to-teal-950/90 border-2 border-emerald-400/80 rounded-2xl p-4 mt-2 hidden animate-bounce-subtle shadow-xl">
+                    <div class="flex items-start gap-3">
+                        <div class="bg-emerald-500 text-slate-950 w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black shrink-0 shadow">
+                            <i class="fa-solid fa-key"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs uppercase font-black text-emerald-300 tracking-wider">Norma Secreta Desbloquejada!</h4>
+                            <p id="rule-written-text" class="text-base font-extrabold text-white mt-0.5 leading-snug"></p>
+                            <p id="rule-math-text" class="text-xs font-mono font-bold text-emerald-200 mt-1 bg-emerald-900/80 px-2 py-1 rounded-lg inline-block border border-emerald-700/60"></p>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Right Column: Function Table & Kid Answer Form (7 cols on large) -->
+            <section class="lg:col-span-7 bg-slate-800/60 border-2 border-slate-700/60 rounded-3xl p-5 flex flex-col justify-between shadow-2xl">
+                
+                <div>
+                    <!-- Instructions Header -->
+                    <div class="mb-4 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700 text-xs md:text-sm text-slate-200 flex items-center gap-3">
+                        <i class="fa-solid fa-magnifying-glass text-amber-400 text-2xl shrink-0"></i>
+                        <div>
+                            <span class="font-bold text-white block mb-0.5">Com es troba la solucio?</span>
+                            Mira com canvia el número quan entra a la màquina. Troba la relació i calcula el valor de la darrera casella (`?`).
+                        </div>
+                    </div>
+
+                    <!-- Function Data Table -->
+                    <div class="overflow-hidden rounded-2xl border-2 border-slate-700 shadow-xl mb-5">
+                        <table class="w-full text-center border-collapse">
+                            <thead>
+                                <tr class="bg-slate-900 text-slate-300 text-xs font-black uppercase tracking-wider border-b-2 border-slate-700">
+                                    <th class="py-3 px-4 text-emerald-400 border-r border-slate-700 w-1/2">
+                                        <i class="fa-solid fa-right-to-bracket mr-1.5"></i> ENTRA (Entrada)
+                                    </th>
+                                    <th class="py-3 px-4 text-indigo-400 w-1/2">
+                                        <i class="fa-solid fa-right-from-bracket mr-1.5"></i> SURT (Sortida)
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="function-table-body" class="divide-y divide-slate-700/80 bg-slate-800/90 font-mono text-base font-bold">
+                                <!-- Dynamic rows inserted by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Answer Input Box -->
+                    <div id="input-card" class="bg-slate-900/90 border-2 border-indigo-500/50 rounded-2xl p-4 shadow-inner space-y-3 glow-card">
+                        <label for="answer-output" class="text-sm font-bold text-slate-100 flex items-center justify-between">
+                            <span class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-amber-400 text-slate-950 text-xs flex items-center justify-center font-black">?</span>
+                                Escriu el valor de <strong class="text-amber-300">SURT</strong> per a l'Entrada <span id="target-input-label" class="text-amber-300 font-mono font-black text-lg underline">?</span>:
+                            </span>
+                        </label>
+                        
+                        <div class="flex flex-col sm:flex-row gap-3 items-center">
+                            <div class="relative w-full">
+                                <input type="number" id="answer-output" placeholder="Escriu aquí el número..." class="w-full bg-slate-950 border-2 border-slate-600 focus:border-amber-400 rounded-xl px-4 py-3 text-xl font-mono text-center text-amber-300 font-black focus:outline-none transition shadow-inner">
+                            </div>
+
+                            <button id="btn-check" onclick="checkAnswer()" class="w-full sm:w-auto bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black px-8 py-3.5 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 shrink-0 text-base">
+                                <i class="fa-solid fa-circle-check text-lg"></i>
+                                <span>Comprovar!</span>
+                            </button>
+
+                            <button id="btn-next" onclick="nextExercise()" class="hidden w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-black px-8 py-3.5 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 shrink-0 text-base animate-bounce">
+                                <span>Següent Exercici</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attempts Left Indicator -->
+                <div class="mt-4 pt-3 border-t border-slate-700/80 flex items-center justify-between text-xs text-slate-300 font-bold">
+                    <span class="flex items-center gap-2">
+                        <i class="fa-solid fa-heart-pulse text-rose-400 text-sm"></i>
+                        <span>Intents d'aquest exercici:</span>
+                    </span>
+                    <div id="attempts-badges" class="flex gap-1.5">
+                        <!-- Hearts dynamically rendered -->
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+    </div>
+
+    <div id="modal-levels" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative">
+            <button onclick="toggleLevelModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-2xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <h3 class="text-2xl font-black text-white mb-1 flex items-center gap-3">
+                <i class="fa-solid fa-graduation-cap text-amber-400"></i>
+                Tria el Nivell de Dificultat
+            </h3>
+            <p class="text-xs text-slate-300 mb-6 font-medium">Selecciona un nivell per començar a entrenar la ment amb la màquina.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Level 0 -->
+                <button onclick="selectLevel(0)" class="bg-slate-900 hover:bg-slate-700/80 border-2 border-emerald-500/40 hover:border-emerald-400 rounded-2xl p-4 text-left transition group relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="bg-emerald-500/20 text-emerald-300 text-xs font-black px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                            NIVELL INICIAL
+                        </span>
+                        <i class="fa-solid fa-plus-minus text-emerald-400 text-xl group-hover:scale-125 transition"></i>
+                    </div>
+                    <h4 class="font-bold text-white text-base mb-1">Suma o Resta Simple</h4>
+                    <p class="text-xs text-slate-400">Sumar o restar un número fix (ex: +6, -7).</p>
+                </button>
+
+                <!-- Level 1 -->
+                <button onclick="selectLevel(1)" class="bg-slate-900 hover:bg-slate-700/80 border-2 border-cyan-500/40 hover:border-cyan-400 rounded-2xl p-4 text-left transition group relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="bg-cyan-500/20 text-cyan-300 text-xs font-black px-2.5 py-0.5 rounded-full border border-cyan-500/30">
+                            NIVELL INTERMEDI
+                        </span>
+                        <i class="fa-solid fa-xmark text-cyan-400 text-xl group-hover:scale-125 transition"></i>
+                    </div>
+                    <h4 class="font-bold text-white text-base mb-1">Multiplicació o Divisió</h4>
+                    <p class="text-xs text-slate-400">Multiplicar o dividir per un factor constant (ex: *5, /3).</p>
+                </button>
+
+                <!-- Level 2 -->
+                <button onclick="selectLevel(2)" class="bg-slate-900 hover:bg-slate-700/80 border-2 border-amber-500/40 hover:border-amber-400 rounded-2xl p-4 text-left transition group relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="bg-amber-500/20 text-amber-300 text-xs font-black px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                            NIVELL ALT
+                        </span>
+                        <i class="fa-solid fa-calculator text-amber-400 text-xl group-hover:scale-125 transition"></i>
+                    </div>
+                    <h4 class="font-bold text-white text-base mb-1">Operacions Combinades</h4>
+                    <p class="text-xs text-slate-400">Dos passos: Multiplicar i sumar/restar (ex: *3 + 2).</p>
+                </button>
+
+                <!-- Level 3 -->
+                <button onclick="selectLevel(3)" class="bg-slate-900 hover:bg-slate-700/80 border-2 border-purple-500/40 hover:border-purple-400 rounded-2xl p-4 text-left transition group relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="bg-purple-500/20 text-purple-300 text-xs font-black px-2.5 py-0.5 rounded-full border border-purple-500/30">
+                            NIVELL DESAFIAMENT
+                        </span>
+                        <i class="fa-solid fa-fire text-purple-400 text-xl group-hover:scale-125 transition"></i>
+                    </div>
+                    <h4 class="font-bold text-white text-base mb-1">Reptes Avançats</h4>
+                    <p class="text-xs text-slate-400">Nombres més grans, resta inversa (100 - x) i divisions.</p>
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-feedback" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl text-center relative animate-bounce-subtle">
+            <div id="feedback-icon" class="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3 shadow-lg">
+                <!-- Dynamic Icon -->
+            </div>
+            
+            <h3 id="feedback-title" class="text-xl font-black text-white mb-2"></h3>
+            <p id="feedback-message" class="text-sm text-slate-200 font-medium mb-5 leading-relaxed"></p>
+
+            <button onclick="closeFeedbackModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black py-3 rounded-2xl transition shadow-lg text-base">
+                Entès!
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const EXERCISES_DATA = [
+            // NIVELL INICIAL (Suma o Resta Simple)
+            {
+                level: 0,
+                levelName: "Nivell Inicial (Suma/Resta)",
+                levelBadgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+                pairs: [
+                    { in: 5, out: 11 },
+                    { in: 10, out: 16 },
+                    { in: 2, out: 8 },
+                    { in: 15, out: 21 }
+                ],
+                targetIn: 8,
+                targetOut: 14,
+                writtenRule: "Sumar 6 a l'Entrada",
+                mathRule: "SURT = ENTRA + 6",
+                fn: (x) => x + 6
+            },
+            {
+                level: 0,
+                levelName: "Nivell Inicial (Suma/Resta)",
+                levelBadgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+                pairs: [
+                    { in: 14, out: 8 },
+                    { in: 9, out: 3 },
+                    { in: 20, out: 14 },
+                    { in: 11, out: 5 }
+                ],
+                targetIn: 18,
+                targetOut: 12,
+                writtenRule: "Restar 6 a l'Entrada",
+                mathRule: "SURT = ENTRA - 6",
+                fn: (x) => x - 6
+            },
+            {
+                level: 0,
+                levelName: "Nivell Inicial (Suma/Resta)",
+                levelBadgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+                pairs: [
+                    { in: 1, out: 9 },
+                    { in: 4, out: 12 },
+                    { in: 7, out: 15 },
+                    { in: 10, out: 18 }
+                ],
+                targetIn: 6,
+                targetOut: 14,
+                writtenRule: "Sumar 8 a l'Entrada",
+                mathRule: "SURT = ENTRA + 8",
+                fn: (x) => x + 8
+            },
+            {
+                level: 0,
+                levelName: "Nivell Inicial (Suma/Resta)",
+                levelBadgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+                pairs: [
+                    { in: 17, out: 10 },
+                    { in: 10, out: 3 },
+                    { in: 12, out: 5 },
+                    { in: 9, out: 2 }
+                ],
+                targetIn: 21,
+                targetOut: 14,
+                writtenRule: "Restar 7 a l'Entrada",
+                mathRule: "SURT = ENTRA - 7",
+                fn: (x) => x - 7
+            },
+            {
+                level: 0,
+                levelName: "Nivell Inicial (Suma/Resta)",
+                levelBadgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+                pairs: [
+                    { in: 3, out: 12 },
+                    { in: 8, out: 17 },
+                    { in: 0, out: 9 },
+                    { in: 1, out: 10 }
+                ],
+                targetIn: 11,
+                targetOut: 20,
+                writtenRule: "Sumar 9 a l'Entrada",
+                mathRule: "SURT = ENTRA + 9",
+                fn: (x) => x + 9
+            },
+
+            // NIVELL INTERMEDI (Multiplicació o Divisió)
+            {
+                level: 1,
+                levelName: "Nivell Intermedi (Mult/Div)",
+                levelBadgeClass: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+                pairs: [
+                    { in: 2, out: 10 },
+                    { in: 5, out: 25 },
+                    { in: 8, out: 40 },
+                    { in: 1, out: 5 }
+                ],
+                targetIn: 7,
+                targetOut: 35,
+                writtenRule: "Multiplicar per 5",
+                mathRule: "SURT = ENTRA × 5",
+                fn: (x) => x * 5
+            },
+            {
+                level: 1,
+                levelName: "Nivell Intermedi (Mult/Div)",
+                levelBadgeClass: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+                pairs: [
+                    { in: 15, out: 5 },
+                    { in: 27, out: 9 },
+                    { in: 9, out: 3 },
+                    { in: 21, out: 7 }
+                ],
+                targetIn: 18,
+                targetOut: 6,
+                writtenRule: "Dividir per 3",
+                mathRule: "SURT = ENTRA ÷ 3",
+                fn: (x) => x / 3
+            },
+            {
+                level: 1,
+                levelName: "Nivell Intermedi (Mult/Div)",
+                levelBadgeClass: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+                pairs: [
+                    { in: 3, out: 18 },
+                    { in: 6, out: 36 },
+                    { in: 1, out: 6 },
+                    { in: 9, out: 54 }
+                ],
+                targetIn: 4,
+                targetOut: 24,
+                writtenRule: "Multiplicar per 6",
+                mathRule: "SURT = ENTRA × 6",
+                fn: (x) => x * 6
+            },
+            {
+                level: 1,
+                levelName: "Nivell Intermedi (Mult/Div)",
+                levelBadgeClass: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+                pairs: [
+                    { in: 40, out: 8 },
+                    { in: 25, out: 5 },
+                    { in: 15, out: 3 },
+                    { in: 50, out: 10 }
+                ],
+                targetIn: 35,
+                targetOut: 7,
+                writtenRule: "Dividir per 5",
+                mathRule: "SURT = ENTRA ÷ 5",
+                fn: (x) => x / 5
+            },
+            {
+                level: 1,
+                levelName: "Nivell Intermedi (Mult/Div)",
+                levelBadgeClass: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+                pairs: [
+                    { in: 10, out: 100 },
+                    { in: 4, out: 40 },
+                    { in: 7, out: 70 },
+                    { in: 1, out: 10 }
+                ],
+                targetIn: 9,
+                targetOut: 90,
+                writtenRule: "Multiplicar per 10",
+                mathRule: "SURT = ENTRA × 10",
+                fn: (x) => x * 10
+            },
+
+            // NIVELL ALT (Operacions Combinades)
+            {
+                level: 2,
+                levelName: "Nivell Alt (Combinades)",
+                levelBadgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                pairs: [
+                    { in: 1, out: 5 },
+                    { in: 4, out: 14 },
+                    { in: 10, out: 32 },
+                    { in: 2, out: 8 }
+                ],
+                targetIn: 5,
+                targetOut: 17,
+                writtenRule: "Multiplicar per 3 i sumar 2",
+                mathRule: "SURT = (ENTRA × 3) + 2",
+                fn: (x) => x * 3 + 2
+            },
+            {
+                level: 2,
+                levelName: "Nivell Alt (Combinades)",
+                levelBadgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                pairs: [
+                    { in: 10, out: 28 },
+                    { in: 5, out: 13 },
+                    { in: 2, out: 4 },
+                    { in: 4, out: 10 }
+                ],
+                targetIn: 8,
+                targetOut: 22,
+                writtenRule: "Multiplicar per 3 i restar 2",
+                mathRule: "SURT = (ENTRA × 3) - 2",
+                fn: (x) => x * 3 - 2
+            },
+            {
+                level: 2,
+                levelName: "Nivell Alt (Combinades)",
+                levelBadgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                pairs: [
+                    { in: 10, out: 46 },
+                    { in: 5, out: 21 },
+                    { in: 2, out: 9 },
+                    { in: 1, out: 5 }
+                ],
+                targetIn: 7,
+                targetOut: 34,
+                writtenRule: "Multiplicar per 4 i sumar 6",
+                mathRule: "SURT = (ENTRA × 4) + 6",
+                fn: (x) => x * 4 + 6
+            },
+            {
+                level: 2,
+                levelName: "Nivell Alt (Combinades)",
+                levelBadgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                pairs: [
+                    { in: 5, out: 19 },
+                    { in: 2, out: 10 },
+                    { in: 4, out: 16 },
+                    { in: 1, out: 7 }
+                ],
+                targetIn: 9,
+                targetOut: 31,
+                writtenRule: "Multiplicar per 3 i sumar 4",
+                mathRule: "SURT = (ENTRA × 3) + 4",
+                fn: (x) => x * 3 + 4
+            },
+            {
+                level: 2,
+                levelName: "Nivell Alt (Combinades)",
+                levelBadgeClass: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+                pairs: [
+                    { in: 1, out: 0 },
+                    { in: 5, out: 16 },
+                    { in: 2, out: 4 },
+                    { in: 4, out: 12 }
+                ],
+                targetIn: 10,
+                targetOut: 36,
+                writtenRule: "Multiplicar per 4 i restar 4",
+                mathRule: "SURT = (ENTRA × 4) - 4",
+                fn: (x) => x * 4 - 4
+            },
+
+            // NIVELL DESAFIAMENT
+            {
+                level: 3,
+                levelName: "Nivell Desafiament",
+                levelBadgeClass: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+                pairs: [
+                    { in: 20, out: 7 },
+                    { in: 50, out: 17 },
+                    { in: 10, out: 3 },
+                    { in: 30, out: 10 }
+                ],
+                targetIn: 40,
+                targetOut: 13,
+                writtenRule: "Dividir per 3 (aproximat)",
+                mathRule: "SURT = ENTRA ÷ 3",
+                fn: (x) => Math.round(x / 3)
+            },
+            {
+                level: 3,
+                levelName: "Nivell Desafiament",
+                levelBadgeClass: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+                pairs: [
+                    { in: 11, out: 23 },
+                    { in: 5, out: 11 },
+                    { in: 8, out: 17 },
+                    { in: 1, out: 3 }
+                ],
+                targetIn: 15,
+                targetOut: 31,
+                writtenRule: "Multiplicar per 2 i sumar 1",
+                mathRule: "SURT = (ENTRA × 2) + 1",
+                fn: (x) => x * 2 + 1
+            },
+            {
+                level: 3,
+                levelName: "Nivell Desafiament",
+                levelBadgeClass: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+                pairs: [
+                    { in: 25, out: 4 },
+                    { in: 15, out: 2 },
+                    { in: 45, out: 8 },
+                    { in: 35, out: 6 }
+                ],
+                targetIn: 55,
+                targetOut: 10,
+                writtenRule: "Dividir per 5 i restar 1",
+                mathRule: "SURT = (ENTRA ÷ 5) - 1",
+                fn: (x) => (x / 5) - 1
+            },
+            {
+                level: 3,
+                levelName: "Nivell Desafiament",
+                levelBadgeClass: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+                pairs: [
+                    { in: 0, out: 100 },
+                    { in: 10, out: 90 },
+                    { in: 50, out: 50 },
+                    { in: 80, out: 20 }
+                ],
+                targetIn: 35,
+                targetOut: 65,
+                writtenRule: "Restar l'Entrada a 100",
+                mathRule: "SURT = 100 - ENTRA",
+                fn: (x) => 100 - x
+            },
+            {
+                level: 3,
+                levelName: "Nivell Desafiament",
+                levelBadgeClass: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+                pairs: [
+                    { in: 100, out: 50 },
+                    { in: 6, out: 3 },
+                    { in: 20, out: 10 },
+                    { in: 48, out: 24 }
+                ],
+                targetIn: 15,
+                targetOut: 7.5,
+                writtenRule: "Dividir per 2 (fer la meitat)",
+                mathRule: "SURT = ENTRA ÷ 2",
+                fn: (x) => x / 2
+            }
+        ];
+
+        let currentExerciseIndex = 0;
+        let selectedLevel = 0;
+        let filteredExercises = [];
+        let score = 0;
+        let attemptsLeft = 3;
+        let isSolved = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initGame();
+        });
+
+        function initGame() {
+            filterExercisesByLevel(selectedLevel);
+            currentExerciseIndex = 0;
+            loadExercise(currentExerciseIndex);
+        }
+
+        function filterExercisesByLevel(lvl) {
+            selectedLevel = lvl;
+            filteredExercises = EXERCISES_DATA.filter(ex => ex.level === lvl);
+            if (filteredExercises.length === 0) {
+                filteredExercises = EXERCISES_DATA;
+            }
+        }
+
+        function loadExercise(index) {
+            sfx.playClick();
+            const ex = filteredExercises[index];
+            attemptsLeft = 3;
+            isSolved = false;
+
+            // UI elements update
+            document.getElementById('level-badge').innerText = ex.levelName;
+            document.getElementById('level-badge').className = `text-xs font-black px-3 py-1 rounded-full border ${ex.levelBadgeClass}`;
+            document.getElementById('progress-display').innerText = `Exercici ${index + 1} de ${filteredExercises.length}`;
+
+            // Reset Machine Screen & secret rule
+            document.getElementById('screen-rule-status').innerHTML = `<i class="fa-solid fa-lock text-xs mr-1 text-amber-400"></i> BLOQUEJADA`;
+            document.getElementById('rule-revelation-box').classList.add('hidden');
+
+            // Robot speech message
+            document.getElementById('robot-speech').innerHTML = `"Observa la taula de números. Quin número ha de sortir quan l'entrada sigui <strong class="text-amber-300">${ex.targetIn}</strong>?"`;
+
+            // Reset inputs
+            document.getElementById('answer-output').value = '';
+            document.getElementById('answer-output').disabled = false;
+            document.getElementById('btn-check').classList.remove('hidden');
+            document.getElementById('btn-next').classList.add('hidden');
+
+            updateAttemptsUI();
+
+            // Populate Table
+            const tbody = document.getElementById('function-table-body');
+            tbody.innerHTML = '';
+
+            ex.pairs.forEach(pair => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-700/40 transition';
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 text-emerald-300 font-black border-r border-slate-700">${pair.in}</td>
+                    <td class="py-2.5 px-4 text-indigo-300 font-black">${pair.out}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Target Row (?)
+            const targetTr = document.createElement('tr');
+            targetTr.className = 'bg-amber-500/20 border-2 border-amber-400 font-black text-lg';
+            targetTr.innerHTML = `
+                <td class="py-3 px-4 text-amber-300 border-r border-slate-700">${ex.targetIn}</td>
+                <td class="py-3 px-4 text-amber-400 animate-pulse flex items-center justify-center gap-1.5 font-extrabold">
+                    <i class="fa-solid fa-circle-question text-amber-300"></i> ?
+                </td>
+            `;
+            tbody.appendChild(targetTr);
+
+            document.getElementById('target-input-label').innerText = ex.targetIn;
+        }
+
+        function updateAttemptsUI() {
+            const container = document.getElementById('attempts-badges');
+            container.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                const badge = document.createElement('i');
+                if (i < attemptsLeft) {
+                    badge.className = 'fa-solid fa-heart text-rose-500 text-base animate-pulse';
+                } else {
+                    badge.className = 'fa-regular fa-heart text-slate-600 text-base';
+                }
+                container.appendChild(badge);
+            }
+        }
+
+        function runTestMachine() {
+            const testInputVal = document.getElementById('test-input').value;
+            if (testInputVal === '' || isNaN(testInputVal)) return;
+
+            const num = parseFloat(testInputVal);
+            const ex = filteredExercises[currentExerciseIndex];
+            const outputVal = ex.fn(num);
+
+            sfx.playMachine();
+
+            const machineBody = document.getElementById('machine-body');
+            const funnelBall = document.getElementById('funnel-ball');
+            const outputBall = document.getElementById('output-ball');
+
+            machineBody.classList.add('working-machine');
+            funnelBall.innerText = num;
+            funnelBall.classList.remove('hidden');
+
+            setTimeout(() => {
+                machineBody.classList.remove('working-machine');
+                funnelBall.classList.add('hidden');
+                
+                outputBall.innerText = outputVal;
+                outputBall.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    outputBall.classList.add('hidden');
+                }, 2200);
+            }, 700);
+        }
+
+        function checkAnswer() {
+            if (isSolved) return;
+
+            const userOutput = parseFloat(document.getElementById('answer-output').value);
+            const ex = filteredExercises[currentExerciseIndex];
+
+            if (isNaN(userOutput)) {
+                showFeedbackModal(
+                    'fa-solid fa-hand text-amber-400 bg-amber-500/20',
+                    'Falta la teva resposta!',
+                    'Si us plau, escriu quin número creus que surt de la màquina.'
+                );
+                return;
+            }
+
+            if (userOutput === ex.targetOut) {
+                // Correct Answer!
+                sfx.playSuccess();
+                confetti({ particleCount: 90, spread: 70, origin: { y: 0.7 } });
+
+                const pointsEarned = (attemptsLeft === 3) ? 100 : (attemptsLeft === 2 ? 70 : 50);
+                score += pointsEarned;
+                document.getElementById('score-display').innerText = score;
+
+                revealSecretRule(ex, true);
+                
+                document.getElementById('robot-speech').innerHTML = `"Molt bé!! Has calculat que per a <strong class="text-amber-300">${ex.targetIn}</strong> surt <strong class="text-emerald-300">${ex.targetOut}</strong>! La norma secreta ja s'ha revelat!"`;
+
+                showFeedbackModal(
+                    'fa-solid fa-circle-check text-emerald-400 bg-emerald-500/20',
+                    '¡Excel·lent! Resposta Correcta! 🎉',
+                    `Has trobat la sortida correcta (${ex.targetOut})! La màquina ha desbloquejat la seva norma secreta.`
+                );
+
+            } else {
+                // Incorrect Attempt
+                attemptsLeft--;
+                updateAttemptsUI();
+                sfx.playWrong();
+
+                if (attemptsLeft > 0) {
+                    document.getElementById('robot-speech').innerHTML = `"Aquest no és el número exacte. Revisa bé els altres parells o provador un número amb el <strong>Provador de Proves</strong>!"`;
+
+                    showFeedbackModal(
+                        'fa-solid fa-rotate-right text-rose-400 bg-rose-500/20',
+                        'Torna-ho a provar!',
+                        `El número ${userOutput} no compleix el patró. Et queden ${attemptsLeft} intents!`
+                    );
+                } else {
+                    // Out of attempts -> Reveal rule automatically
+                    revealSecretRule(ex, false);
+
+                    document.getElementById('robot-speech').innerHTML = `"S'han acabat els intents! No passa res, mira a sota com funcionava aquesta norma secreta!"`;
+
+                    showFeedbackModal(
+                        'fa-solid fa-lightbulb text-amber-400 bg-amber-500/20',
+                        'Miren com funcionava!',
+                        `Així s'obtenia el resultat: la norma secreta de la màquina era: **${ex.writtenRule}**.`
+                    );
+                }
+            }
+        }
+
+        function revealSecretRule(ex, solvedByStudent) {
+            isSolved = true;
+
+            // Screen and rule card updates
+            document.getElementById('screen-rule-status').innerHTML = `<i class="fa-solid fa-unlock text-xs mr-1 text-emerald-400"></i> DESBLOQUEJADA`;
+            document.getElementById('rule-written-text').innerText = ex.writtenRule;
+            document.getElementById('rule-math-text').innerText = `${ex.mathRule} (Ex: ${ex.targetIn} → ${ex.targetOut})`;
+            document.getElementById('rule-revelation-box').classList.remove('hidden');
+
+            document.getElementById('answer-output').disabled = true;
+            document.getElementById('btn-check').classList.add('hidden');
+            document.getElementById('btn-next').classList.remove('hidden');
+        }
+
+        function nextExercise() {
+            if (currentExerciseIndex < filteredExercises.length - 1) {
+                currentExerciseIndex++;
+                loadExercise(currentExerciseIndex);
+            } else {
+                // Level completion
+                confetti({ particleCount: 160, spread: 100, origin: { y: 0.6 } });
+                showFeedbackModal(
+                    'fa-solid fa-trophy text-amber-400 bg-amber-500/20',
+                    '¡Felicitats! Nivell Completat!',
+                    `Has completat tots els exercicis d'aquest nivell! Prova ara amb un nivell més avançat.`
+                );
+            }
+        }
+
+        function toggleLevelModal() {
+            sfx.playClick();
+            const modal = document.getElementById('modal-levels');
+            modal.classList.toggle('hidden');
+        }
+
+        function selectLevel(lvl) {
+            toggleLevelModal();
+            filterExercisesByLevel(lvl);
+            currentExerciseIndex = 0;
+            loadExercise(currentExerciseIndex);
+        }
+
+        function showFeedbackModal(iconClass, title, message) {
+            const iconContainer = document.getElementById('feedback-icon');
+            iconContainer.className = `w-16 h-16 rounded-2xl mx-auto flex items-center justify-center text-3xl mb-3 shadow-lg ${iconClass}`;
+            
+            document.getElementById('feedback-title').innerText = title;
+            document.getElementById('feedback-message').innerText = message;
+
+            document.getElementById('modal-feedback').classList.remove('hidden');
+        }
+
+        function closeFeedbackModal() {
+            sfx.playClick();
+            document.getElementById('modal-feedback').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
